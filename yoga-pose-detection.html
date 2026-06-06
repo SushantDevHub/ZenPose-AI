@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZenPose AI — Yoga Pose Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+<!-- MediaPipe & Camera Utils -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+<style>
+  :root {
+    --sage: #7a9e7e;
+    --sage-light: #a8c5ac;
+    --sage-dark: #4a6b4e;
+    --cream: #f5f0e8;
+    --warm-white: #faf7f2;
+    --clay: #c4845a;
+    --clay-light: #dba882;
+    --charcoal: #2a2a2a;
+    --mid-grey: #6b6b6b;
+    --light-grey: #e8e4dc;
+    --overlay: rgba(42,42,42,0.75);
+    --card-bg: rgba(255,255,255,0.85);
+    --shadow: 0 8px 40px rgba(42,42,42,0.12);
+    --shadow-lg: 0 20px 60px rgba(42,42,42,0.18);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--warm-white);
+    color: var(--charcoal);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ---- BACKGROUND PATTERN ---- */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(122,158,126,0.08) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(196,132,90,0.06) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='1' fill='%237a9e7e' fill-opacity='0.08'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ========= AUTH SECTION ========= */
+  #auth-section {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 2rem;
+  }
+
+  .auth-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(122,158,126,0.2);
+    border-radius: 24px;
+    padding: 3rem 2.5rem;
+    width: 100%; max-width: 420px;
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1);
+  }
+
+  @keyframes slideUp {
+    from { opacity:0; transform: translateY(40px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  .brand {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+
+  .brand-icon {
+    width: 60px; height: 60px;
+    background: linear-gradient(135deg, var(--sage), var(--sage-dark));
+    border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 1.8rem;
+    box-shadow: 0 8px 24px rgba(122,158,126,0.35);
+  }
+
+  .brand h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--charcoal);
+    letter-spacing: -0.02em;
+  }
+
+  .brand p {
+    font-size: 0.72rem;
+    color: var(--mid-grey);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0.3rem;
+  }
+
+  .tab-switch {
+    display: flex;
+    background: var(--light-grey);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 1.8rem;
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 0.6rem;
+    border: none;
+    background: transparent;
+    border-radius: 9px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.25s;
+    color: var(--mid-grey);
+  }
+
+  .tab-btn.active {
+    background: white;
+    color: var(--charcoal);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  .form-group {
+    margin-bottom: 1.2rem;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--mid-grey);
+    margin-bottom: 0.5rem;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border: 1.5px solid var(--light-grey);
+    border-radius: 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    background: white;
+    color: var(--charcoal);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+
+  .form-group input:focus {
+    border-color: var(--sage);
+    box-shadow: 0 0 0 3px rgba(122,158,126,0.15);
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 0.9rem;
+    background: linear-gradient(135deg, var(--sage), var(--sage-dark));
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.25s;
+    box-shadow: 0 4px 16px rgba(122,158,126,0.35);
+    margin-top: 0.5rem;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(122,158,126,0.45);
+  }
+
+  .btn-primary:active { transform: translateY(0); }
+
+  .auth-msg {
+    text-align: center;
+    font-size: 0.75rem;
+    margin-top: 1rem;
+    min-height: 1.2em;
+    border-radius: 8px;
+    padding: 0.5rem;
+  }
+
+  .auth-msg.error { color: #c0392b; background: rgba(192,57,43,0.08); }
+  .auth-msg.success { color: var(--sage-dark); background: rgba(122,158,126,0.12); }
+
+  /* ========= APP SECTION ========= */
+  #app-section {
+    display: none;
+    position: relative; z-index: 1;
+    min-height: 100vh;
+  }
+
+  /* NAVBAR */
+  .navbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(250,247,242,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(122,158,126,0.15);
+    padding: 0 2rem;
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .nav-brand {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    display: flex; align-items: center; gap: 0.6rem;
+  }
+
+  .nav-brand span.icon { font-size: 1.2rem; }
+
+  .nav-right {
+    display: flex; align-items: center; gap: 1rem;
+  }
+
+  .user-badge {
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    color: var(--mid-grey);
+    background: var(--light-grey);
+    padding: 0.35rem 0.8rem;
+    border-radius: 20px;
+  }
+
+  .btn-logout {
+    padding: 0.4rem 0.9rem;
+    border: 1.5px solid var(--light-grey);
+    background: transparent;
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--mid-grey);
+  }
+
+  .btn-logout:hover {
+    border-color: var(--clay);
+    color: var(--clay);
+    background: rgba(196,132,90,0.06);
+  }
+
+  /* MAIN LAYOUT */
+  .main-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 1.5rem;
+    padding: 1.5rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 900px) {
+    .main-layout { grid-template-columns: 1fr; }
+  }
+
+  /* VIDEO PANEL */
+  .video-panel {
+    background: var(--card-bg);
+    border-radius: 20px;
+    border: 1px solid rgba(122,158,126,0.15);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  .video-header {
+    padding: 1.2rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--light-grey);
+  }
+
+  .video-header h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ccc;
+    display: inline-block;
+    margin-right: 0.5rem;
+    transition: background 0.3s;
+  }
+
+  .status-dot.active { background: #4caf50; box-shadow: 0 0 8px rgba(76,175,80,0.6); animation: pulse 2s infinite; }
+  .status-dot.loading { background: var(--clay); animation: pulse 1s infinite; }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; } 50% { opacity:0.4; }
+  }
+
+  .status-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    color: var(--mid-grey);
+  }
+
+  .video-container {
+    position: relative;
+    background: #1a1a1a;
+    aspect-ratio: 4/3;
+    overflow: hidden;
+  }
+
+  #video-feed {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    display: block;
+  }
+
+  #output-canvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    transform: scaleX(-1);
+  }
+
+  .video-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.5);
+    gap: 1rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+  }
+
+  .video-placeholder .big-icon { font-size: 3.5rem; }
+
+  .video-footer {
+    padding: 1rem 1.5rem;
+    display: flex; gap: 0.8rem; flex-wrap: wrap;
+  }
+
+  .btn-cam {
+    flex: 1;
+    padding: 0.75rem;
+    border-radius: 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.25s;
+    border: none;
+    min-width: 120px;
+  }
+
+  .btn-cam.start {
+    background: linear-gradient(135deg, var(--sage), var(--sage-dark));
+    color: white;
+    box-shadow: 0 4px 12px rgba(122,158,126,0.3);
+  }
+
+  .btn-cam.stop {
+    background: var(--light-grey);
+    color: var(--mid-grey);
+  }
+
+  .btn-cam:hover { transform: translateY(-1px); }
+  .btn-cam:disabled { opacity: 0.5; cursor: default; transform: none; }
+
+  /* POSE OVERLAY INFO */
+  .pose-badge {
+    position: absolute;
+    bottom: 1rem; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(10px);
+    color: white;
+    padding: 0.5rem 1.2rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-align: center;
+    min-width: 180px;
+    display: none;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+
+  .pose-badge.visible { display: block; animation: fadeInUp 0.3s ease; }
+  .pose-badge .pose-name { font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; display: block; }
+  .pose-badge .conf-bar-wrap { margin-top: 0.4rem; height: 3px; background: rgba(255,255,255,0.2); border-radius: 2px; }
+  .pose-badge .conf-bar { height: 100%; background: var(--sage-light); border-radius: 2px; transition: width 0.5s; }
+
+  @keyframes fadeInUp { from { opacity:0; transform: translateX(-50%) translateY(10px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+
+  /* SIDE PANEL */
+  .side-panel {
+    display: flex; flex-direction: column; gap: 1.2rem;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border-radius: 16px;
+    border: 1px solid rgba(122,158,126,0.15);
+    padding: 1.3rem;
+    box-shadow: var(--shadow);
+  }
+
+  .card-title {
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mid-grey);
+    margin-bottom: 1rem;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+
+  /* CURRENT POSE CARD */
+  .current-pose-display {
+    text-align: center;
+    padding: 0.5rem 0;
+  }
+
+  .pose-emoji { font-size: 3rem; display: block; margin-bottom: 0.5rem; }
+
+  .pose-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--charcoal);
+    min-height: 2rem;
+  }
+
+  .pose-sanskrit {
+    font-size: 0.7rem;
+    color: var(--mid-grey);
+    font-style: italic;
+    margin-top: 0.2rem;
+    font-family: 'Cormorant Garamond', serif;
+  }
+
+  .confidence-display {
+    margin-top: 1rem;
+    background: var(--light-grey);
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+  }
+
+  .conf-label { font-size: 0.65rem; color: var(--mid-grey); letter-spacing: 0.08em; margin-bottom: 0.4rem; display: flex; justify-content: space-between; }
+  .conf-track { height: 6px; background: rgba(0,0,0,0.08); border-radius: 3px; overflow: hidden; }
+  .conf-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--sage), var(--clay-light));
+    border-radius: 3px;
+    transition: width 0.5s cubic-bezier(0.34,1.56,0.64,1);
+    width: 0%;
+  }
+
+  /* POSE LIBRARY */
+  .pose-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+
+  .pose-chip {
+    padding: 0.5rem 0.6rem;
+    border-radius: 8px;
+    background: var(--light-grey);
+    border: 1.5px solid transparent;
+    font-size: 0.65rem;
+    letter-spacing: 0.04em;
+    text-align: center;
+    transition: all 0.25s;
+    cursor: default;
+  }
+
+  .pose-chip .chip-icon { display: block; font-size: 1.2rem; margin-bottom: 0.2rem; }
+  .pose-chip .chip-name { color: var(--charcoal); font-weight: 500; display: block; }
+  .pose-chip .chip-san { color: var(--mid-grey); font-size: 0.6rem; font-style: italic; font-family: 'Cormorant Garamond', serif; }
+
+  .pose-chip.detected {
+    background: rgba(122,158,126,0.12);
+    border-color: var(--sage);
+  }
+
+  /* STATS CARD */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 0.6rem;
+  }
+
+  .stat-item { text-align: center; }
+  .stat-val {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--charcoal);
+    display: block;
+    line-height: 1;
+  }
+
+  .stat-lbl { font-size: 0.6rem; color: var(--mid-grey); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 0.2rem; }
+
+  /* TIPS */
+  .tip-text {
+    font-size: 0.72rem;
+    color: var(--mid-grey);
+    line-height: 1.7;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 0.9rem;
+  }
+
+  .tip-text strong { color: var(--sage-dark); font-style: normal; font-family: 'DM Mono', monospace; font-size: 0.72rem; }
+
+  /* FEEDBACK TOAST */
+  #toast {
+    position: fixed; bottom: 2rem; right: 2rem;
+    background: var(--charcoal);
+    color: white;
+    padding: 0.8rem 1.2rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    z-index: 9999;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: var(--shadow-lg);
+  }
+
+  #toast.show { transform: translateY(0); opacity: 1; }
+
+  /* LOADING OVERLAY */
+  #loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(250,247,242,0.95);
+    z-index: 9000;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 1.5rem;
+    display: none;
+  }
+
+  .loader-logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    font-weight: 600;
+  }
+
+  .loader-bar-wrap {
+    width: 200px; height: 3px;
+    background: var(--light-grey);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .loader-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--sage), var(--clay-light));
+    border-radius: 2px;
+    animation: loadBar 2s ease infinite;
+  }
+
+  @keyframes loadBar {
+    0% { width:0%; margin-left:0; }
+    50% { width:60%; margin-left:20%; }
+    100% { width:0%; margin-left:100%; }
+  }
+
+  .loader-msg { font-size: 0.72rem; color: var(--mid-grey); letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+
+<!-- AUTH SECTION -->
+<section id="auth-section">
+  <div class="auth-card">
+    <div class="brand">
+      <div class="brand-icon">🧘</div>
+      <h1>ZenPose AI</h1>
+      <p>Yoga Pose Detection</p>
+    </div>
+
+    <div class="tab-switch">
+      <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+      <button class="tab-btn" id="tab-register" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <div id="login-form">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="login-user" placeholder="your username" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+      <button class="btn-primary" onclick="doLogin()">Sign In →</button>
+    </div>
+
+    <div id="register-form" style="display:none">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="reg-user" placeholder="choose a username" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="reg-pass" placeholder="min 6 characters" autocomplete="new-password" onkeydown="if(event.key==='Enter') doRegister()">
+      </div>
+      <button class="btn-primary" onclick="doRegister()">Create Account →</button>
+    </div>
+
+    <div class="auth-msg" id="auth-msg"></div>
+  </div>
+</section>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay">
+  <div class="loader-logo">🧘 ZenPose AI</div>
+  <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
+  <div class="loader-msg" id="loader-msg">Initialising AI model...</div>
+</div>
+
+<!-- APP SECTION -->
+<section id="app-section">
+  <nav class="navbar">
+    <div class="nav-brand"><span class="icon">🧘</span> ZenPose AI</div>
+    <div class="nav-right">
+      <span class="user-badge" id="nav-username">—</span>
+      <button class="btn-logout" onclick="doLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="main-layout">
+    <!-- VIDEO PANEL -->
+    <div class="video-panel">
+      <div class="video-header">
+        <h2>Live Detection</h2>
+        <div>
+          <span class="status-dot" id="status-dot"></span>
+          <span class="status-label" id="status-label">Camera off</span>
+        </div>
+      </div>
+      <div class="video-container" id="video-container">
+        <video id="video-feed" autoplay muted playsinline></video>
+        <canvas id="output-canvas"></canvas>
+        <div class="video-placeholder" id="video-placeholder">
+          <div class="big-icon">📷</div>
+          <div>Start camera to detect poses</div>
+        </div>
+        <div class="pose-badge" id="pose-badge">
+          <span class="pose-name" id="badge-name">Detecting...</span>
+          <div class="conf-bar-wrap"><div class="conf-bar" id="badge-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="video-footer">
+        <button class="btn-cam start" id="btn-start" onclick="startCamera()">▶ Start Camera</button>
+        <button class="btn-cam stop" id="btn-stop" onclick="stopCamera()" disabled>■ Stop</button>
+      </div>
+    </div>
+
+    <!-- SIDE PANEL -->
+    <div class="side-panel">
+
+      <!-- Current Pose Card -->
+      <div class="card">
+        <div class="card-title">🎯 Current Pose</div>
+        <div class="current-pose-display">
+          <span class="pose-emoji" id="cur-emoji">🧘</span>
+          <div class="pose-title" id="cur-pose-name">Waiting...</div>
+          <div class="pose-sanskrit" id="cur-sanskrit">Start camera to detect</div>
+        </div>
+        <div class="confidence-display">
+          <div class="conf-label">
+            <span>Confidence</span>
+            <span id="conf-pct">0%</span>
+          </div>
+          <div class="conf-track"><div class="conf-fill" id="conf-fill"></div></div>
+        </div>
+      </div>
+
+      <!-- Stats Card -->
+      <div class="card">
+        <div class="card-title">📊 Session Stats</div>
+        <div class="stats-row">
+          <div class="stat-item">
+            <span class="stat-val" id="stat-poses">0</span>
+            <div class="stat-lbl">Poses</div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-val" id="stat-time">0</span>
+            <div class="stat-lbl">Seconds</div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-val" id="stat-score">0</span>
+            <div class="stat-lbl">Score</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pose Library -->
+      <div class="card">
+        <div class="card-title">📚 Pose Library</div>
+        <div class="pose-grid" id="pose-grid"></div>
+      </div>
+
+      <!-- Tips -->
+      <div class="card">
+        <div class="card-title">💡 Tip</div>
+        <div class="tip-text" id="tip-text">
+          <strong>Getting started:</strong> Stand 1.5–2m from your camera. Make sure your full body is visible in the frame for accurate detection.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<script>
+/* ======================================================
+   DATABASE (IndexedDB)
+====================================================== */
+const DB_NAME = 'ZenPoseDB';
+const DB_VER  = 1;
+let db;
+
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('users')) {
+        const store = d.createObjectStore('users', { keyPath: 'username' });
+        store.createIndex('email', 'email', { unique: true });
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+function dbGet(store, key) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).get(key);
+    req.onsuccess = () => res(req.result);
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+function dbPut(store, obj) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).put(obj);
+    req.onsuccess = () => res(req.result);
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+/* Simple hash (FNV-1a) - good enough for local demo */
+function hashPass(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+/* ======================================================
+   AUTH
+====================================================== */
+let currentUser = null;
+
+function switchTab(tab) {
+  document.getElementById('login-form').style.display    = tab === 'login' ? '' : 'none';
+  document.getElementById('register-form').style.display = tab === 'register' ? '' : 'none';
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+  clearMsg();
+}
+
+function showMsg(msg, type) {
+  const el = document.getElementById('auth-msg');
+  el.textContent = msg;
+  el.className = 'auth-msg ' + type;
+}
+
+function clearMsg() {
+  const el = document.getElementById('auth-msg');
+  el.textContent = ''; el.className = 'auth-msg';
+}
+
+async function doRegister() {
+  const u = document.getElementById('reg-user').value.trim();
+  const e = document.getElementById('reg-email').value.trim();
+  const p = document.getElementById('reg-pass').value;
+  if (!u || !e || !p) return showMsg('Please fill all fields.', 'error');
+  if (p.length < 6)   return showMsg('Password must be at least 6 characters.', 'error');
+  const exists = await dbGet('users', u);
+  if (exists) return showMsg('Username already taken. Try another.', 'error');
+  await dbPut('users', { username: u, email: e, passHash: hashPass(p), createdAt: Date.now() });
+  showMsg('Account created! You can now sign in.', 'success');
+  setTimeout(() => switchTab('login'), 1200);
+}
+
+async function doLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value;
+  if (!u || !p) return showMsg('Please enter username and password.', 'error');
+  const user = await dbGet('users', u);
+  if (!user || user.passHash !== hashPass(p)) return showMsg('Invalid username or password.', 'error');
+  currentUser = user;
+  enterApp();
+}
+
+function doLogout() {
+  stopCamera();
+  currentUser = null;
+  document.getElementById('app-section').style.display = 'none';
+  document.getElementById('auth-section').style.display = 'flex';
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+  clearMsg();
+  resetStats();
+}
+
+function enterApp() {
+  document.getElementById('auth-section').style.display = 'none';
+  document.getElementById('app-section').style.display  = 'block';
+  document.getElementById('nav-username').textContent = '👤 ' + currentUser.username;
+  buildPoseGrid();
+}
+
+/* ======================================================
+   POSE DATA
+====================================================== */
+const POSES = [
+  { id:'tree',        name:'Tree Pose',          sanskrit:'Vrksasana',        emoji:'🌳', color:'#7a9e7e',
+    tip:'Press the sole of your foot into your inner thigh. Focus your gaze on a fixed point.' },
+  { id:'warrior1',    name:'Warrior I',           sanskrit:'Virabhadrasana I', emoji:'⚔️', color:'#c4845a',
+    tip:'Keep your hips squared forward. Raise your arms overhead, shoulder-width apart.' },
+  { id:'warrior2',    name:'Warrior II',          sanskrit:'Virabhadrasana II',emoji:'🗡️', color:'#c4845a',
+    tip:'Extend your arms parallel to the floor. Gaze over your front hand.' },
+  { id:'tpose',       name:'T-Pose',              sanskrit:'Reference Pose',   emoji:'✈️', color:'#5a7ec4',
+    tip:'Stand tall with arms extended. Used for AI calibration.' },
+  { id:'mountain',    name:'Mountain Pose',       sanskrit:'Tadasana',         emoji:'🏔️', color:'#6b6b8a',
+    tip:'Stand tall, feet together. Engage your core and roll your shoulders back.' },
+  { id:'forwardfold', name:'Forward Fold',        sanskrit:'Uttanasana',       emoji:'🙇', color:'#8a6b4e',
+    tip:'Hinge from your hips, not your waist. Keep your spine long.' },
+  { id:'triangle',    name:'Triangle Pose',       sanskrit:'Trikonasana',      emoji:'📐', color:'#4e8a7a',
+    tip:'Extend your torso over the front leg. Reach down with one hand, up with the other.' },
+  { id:'chair',       name:'Chair Pose',          sanskrit:'Utkatasana',       emoji:'🪑', color:'#7a4e8a',
+    tip:'Sink your hips as if sitting in a chair. Keep your knees behind your toes.' },
+];
+
+let detectedPoseIds = new Set();
+
+function buildPoseGrid() {
+  const grid = document.getElementById('pose-grid');
+  grid.innerHTML = POSES.map(p => `
+    <div class="pose-chip" id="chip-${p.id}">
+      <span class="chip-icon">${p.emoji}</span>
+      <span class="chip-name">${p.name}</span>
+      <span class="chip-san">${p.sanskrit}</span>
+    </div>
+  `).join('');
+}
+
+/* ======================================================
+   MEDIAPIPE POSE
+====================================================== */
+let poseDetector = null;
+let camera       = null;
+let cameraStream = null;
+let isRunning    = false;
+let sessionStart = null;
+let sessionTimer = null;
+let posesDetectedCount = 0;
+let sessionScore       = 0;
+let lastPoseId         = null;
+let holdStart          = null;
+let holdSeconds        = 0;
+
+const video  = document.getElementById('video-feed');
+const canvas = document.getElementById('output-canvas');
+const ctx    = canvas.getContext('2d');
+
+function setStatus(state) {
+  const dot   = document.getElementById('status-dot');
+  const label = document.getElementById('status-label');
+  dot.className = 'status-dot ' + state;
+  label.textContent = state === 'active' ? 'Detecting' : state === 'loading' ? 'Loading...' : 'Camera off';
+}
+
+async function startCamera() {
+  if (isRunning) return;
+
+  document.getElementById('loading-overlay').style.display = 'flex';
+  document.getElementById('loader-msg').textContent = 'Loading AI model...';
+  setStatus('loading');
+
+  try {
+    // Init MediaPipe Pose
+    if (!poseDetector) {
+      poseDetector = new Pose({
+        locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+      });
+      poseDetector.setOptions({
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        smoothSegmentation: false,
+        minDetectionConfidence: 0.55,
+        minTrackingConfidence: 0.55
+      });
+      poseDetector.onResults(onPoseResults);
+      document.getElementById('loader-msg').textContent = 'Warming up model...';
+      await poseDetector.initialize();
+    }
+
+    document.getElementById('loader-msg').textContent = 'Requesting camera access...';
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width:640, height:480 }, audio: false });
+    video.srcObject = cameraStream;
+    await video.play();
+
+    document.getElementById('video-placeholder').style.display = 'none';
+    canvas.width  = video.videoWidth  || 640;
+    canvas.height = video.videoHeight || 480;
+
+    isRunning = true;
+    sessionStart = Date.now();
+    sessionTimer = setInterval(updateTimer, 1000);
+
+    document.getElementById('btn-start').disabled = true;
+    document.getElementById('btn-stop').disabled  = false;
+
+    // Start frame loop
+    processFrame();
+
+    document.getElementById('loading-overlay').style.display = 'none';
+    setStatus('active');
+    showToast('Camera started! Strike a pose 🧘');
+
+  } catch(e) {
+    document.getElementById('loading-overlay').style.display = 'none';
+    setStatus('');
+    showToast('Error: ' + e.message);
+    console.error(e);
+  }
+}
+
+async function processFrame() {
+  if (!isRunning) return;
+  if (video.readyState >= 2) {
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    try { await poseDetector.send({ image: video }); } catch(e) {}
+  }
+  requestAnimationFrame(processFrame);
+}
+
+function stopCamera() {
+  isRunning = false;
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  if (sessionTimer) { clearInterval(sessionTimer); sessionTimer = null; }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById('video-placeholder').style.display = 'flex';
+  document.getElementById('pose-badge').classList.remove('visible');
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('btn-stop').disabled  = true;
+  setStatus('');
+  updateCurrentPose(null, 0);
+}
+
+function updateTimer() {
+  if (!sessionStart) return;
+  const s = Math.floor((Date.now() - sessionStart) / 1000);
+  document.getElementById('stat-time').textContent = s;
+}
+
+function resetStats() {
+  posesDetectedCount = 0; sessionScore = 0;
+  document.getElementById('stat-poses').textContent = '0';
+  document.getElementById('stat-time').textContent  = '0';
+  document.getElementById('stat-score').textContent = '0';
+  sessionStart = null;
+}
+
+/* ======================================================
+   POSE RESULTS & CLASSIFICATION
+====================================================== */
+function onPoseResults(results) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!results.poseLandmarks) {
+    updateCurrentPose(null, 0);
+    return;
+  }
+
+  // Draw skeleton
+  drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, { color: 'rgba(122,158,126,0.7)', lineWidth: 2.5 });
+  drawLandmarks(ctx, results.poseLandmarks, {
+    color: 'rgba(196,132,90,0.9)', lineWidth: 1, radius: 4
+  });
+
+  // Classify
+  const { poseId, confidence } = classifyPose(results.poseLandmarks);
+  updateCurrentPose(poseId, confidence);
+
+  // Update badge on video
+  const badge = document.getElementById('pose-badge');
+  if (poseId && confidence > 0.55) {
+    const pose = POSES.find(p => p.id === poseId);
+    badge.classList.add('visible');
+    document.getElementById('badge-name').textContent = pose.emoji + ' ' + pose.name;
+    document.getElementById('badge-bar').style.width = (confidence * 100) + '%';
+
+    // Track holds
+    if (poseId === lastPoseId) {
+      holdSeconds++;
+      if (holdSeconds === 3) {
+        if (!detectedPoseIds.has(poseId)) {
+          detectedPoseIds.add(poseId);
+          posesDetectedCount++;
+          sessionScore += 10;
+          document.getElementById('stat-poses').textContent = posesDetectedCount;
+          document.getElementById('stat-score').textContent = sessionScore;
+          document.getElementById('chip-' + poseId).classList.add('detected');
+          showToast(pose.emoji + ' ' + pose.name + ' — well done! +10 pts');
+        }
+      }
+    } else {
+      lastPoseId   = poseId;
+      holdStart    = Date.now();
+      holdSeconds  = 0;
+      // Update tip
+      document.getElementById('tip-text').innerHTML =
+        `<strong>${pose.name}:</strong> ${pose.tip}`;
+    }
+  } else {
+    badge.classList.remove('visible');
+    if (lastPoseId) { lastPoseId = null; holdSeconds = 0; }
+  }
+}
+
+/* ======================================================
+   POSE CLASSIFICATION ENGINE
+   Uses angle-based heuristics on MediaPipe landmarks
+====================================================== */
+function getLandmark(lms, idx) {
+  const l = lms[idx];
+  return { x: l.x, y: l.y, z: l.z, v: l.visibility };
+}
+
+function angle(A, B, C) {
+  // Angle at B
+  const ba = { x: A.x - B.x, y: A.y - B.y };
+  const bc = { x: C.x - B.x, y: C.y - B.y };
+  const dot = ba.x * bc.x + ba.y * bc.y;
+  const magBA = Math.hypot(ba.x, ba.y);
+  const magBC = Math.hypot(bc.x, bc.y);
+  if (magBA * magBC === 0) return 0;
+  return Math.acos(Math.max(-1, Math.min(1, dot / (magBA * magBC)))) * (180 / Math.PI);
+}
+
+function classifyPose(lms) {
+  if (!lms || lms.length < 33) return { poseId: null, confidence: 0 };
+
+  // Key landmarks
+  const nose      = getLandmark(lms, 0);
+  const lShoulder = getLandmark(lms, 11);
+  const rShoulder = getLandmark(lms, 12);
+  const lElbow    = getLandmark(lms, 13);
+  const rElbow    = getLandmark(lms, 14);
+  const lWrist    = getLandmark(lms, 15);
+  const rWrist    = getLandmark(lms, 16);
+  const lHip      = getLandmark(lms, 23);
+  const rHip      = getLandmark(lms, 24);
+  const lKnee     = getLandmark(lms, 25);
+  const rKnee     = getLandmark(lms, 26);
+  const lAnkle    = getLandmark(lms, 27);
+  const rAnkle    = getLandmark(lms, 28);
+
+  // Angles
+  const lElbowAngle = angle(lShoulder, lElbow, lWrist);
+  const rElbowAngle = angle(rShoulder, rElbow, rWrist);
+  const lKneeAngle  = angle(lHip, lKnee, lAnkle);
+  const rKneeAngle  = angle(rHip, rKnee, rAnkle);
+  const lShoulderAngle = angle(lElbow, lShoulder, lHip);
+  const rShoulderAngle = angle(rElbow, rShoulder, rHip);
+  const lHipAngle   = angle(lShoulder, lHip, lKnee);
+  const rHipAngle   = angle(rShoulder, rHip, rKnee);
+
+  // Derived helpers
+  const armsExtended = lElbowAngle > 150 && rElbowAngle > 150;
+  const armsUp       = lWrist.y < lShoulder.y - 0.05 && rWrist.y < rShoulder.y - 0.05;
+  const armsDown     = lWrist.y > lHip.y && rWrist.y > rHip.y;
+  const armsWide     = Math.abs(lWrist.x - rWrist.x) > 0.5;
+  const kneesStr     = lKneeAngle > 155 && rKneeAngle > 155;
+  const hipStraight  = lHipAngle > 155 && rHipAngle > 155;
+
+  const lShoulderH   = lShoulderAngle;
+  const rShoulderH   = rShoulderAngle;
+
+  // Foot heights
+  const feetClose    = Math.abs(lAnkle.y - rAnkle.y) < 0.04;
+  const feetFar      = Math.abs(lAnkle.x - rAnkle.x) > 0.25;
+  const bodyH        = Math.abs(lShoulder.y - lAnkle.y);
+  const hipH         = Math.abs(lHip.y - lAnkle.y) / (bodyH + 0.001);
+
+  // ---- TREE POSE ----
+  // One leg bent (knee angle ~60-120), other leg straight, arms up or wide
+  const oneKneeBent = (lKneeAngle < 140 && rKneeAngle > 155) ||
+                      (rKneeAngle < 140 && lKneeAngle > 155);
+  if (oneKneeBent && (armsUp || (armsExtended && armsWide))) {
+    const conf = 0.65 + (armsUp ? 0.2 : 0.1) +
+      (Math.min(lKneeAngle, rKneeAngle) < 100 ? 0.1 : 0);
+    return { poseId: 'tree', confidence: Math.min(conf, 0.95) };
+  }
+
+  // ---- T-POSE ----
+  if (armsExtended && armsWide && kneesStr &&
+      lShoulderAngle > 70 && rShoulderAngle > 70 &&
+      Math.abs(lShoulder.y - rShoulder.y) < 0.05) {
+    const conf = 0.7 + (Math.abs(lShoulder.y - rShoulder.y) < 0.025 ? 0.15 : 0);
+    return { poseId: 'tpose', confidence: Math.min(conf, 0.95) };
+  }
+
+  // ---- WARRIOR I ----
+  // Front knee bent, back leg straight, arms up
+  if (feetFar && armsUp && armsExtended) {
+    const kneeDiff = Math.abs(lKneeAngle - rKneeAngle);
+    if (kneeDiff > 20 && Math.min(lKneeAngle, rKneeAngle) < 140) {
+      return { poseId: 'warrior1', confidence: 0.72 + (kneeDiff > 40 ? 0.1 : 0) };
+    }
+  }
+
+  // ---- WARRIOR II ----
+  // Feet wide, arms extended sideways, front knee bent
+  if (feetFar && armsExtended && armsWide) {
+    const kneeDiff = Math.abs(lKneeAngle - rKneeAngle);
+    if (kneeDiff > 15 && Math.min(lKneeAngle, rKneeAngle) < 150) {
+      // Arms should be roughly horizontal (shoulder angle ~90)
+      const armsHoriz = Math.abs(lShoulder.y - lWrist.y) < 0.12 &&
+                        Math.abs(rShoulder.y - rWrist.y) < 0.12;
+      if (armsHoriz) {
+        return { poseId: 'warrior2', confidence: 0.75 };
+      }
+    }
+  }
+
+  // ---- FORWARD FOLD ----
+  // Torso bent forward: nose close to knees in y
+  const torsoForward = nose.y > lHip.y - 0.05;
+  if (torsoForward && kneesStr && armsDown) {
+    return { poseId: 'forwardfold', confidence: 0.78 };
+  }
+
+  // ---- CHAIR POSE ----
+  // Both knees bent, arms up
+  if (!feetFar && armsUp && lKneeAngle < 155 && rKneeAngle < 155 &&
+      lKneeAngle > 90 && rKneeAngle > 90) {
+    const avgKnee = (lKneeAngle + rKneeAngle) / 2;
+    const conf = 0.65 + (avgKnee < 130 ? 0.2 : 0);
+    return { poseId: 'chair', confidence: conf };
+  }
+
+  // ---- TRIANGLE POSE ----
+  // Feet wide, torso tilted, one arm up one arm down
+  const oneArmUp   = (lWrist.y < lShoulder.y && rWrist.y > rHip.y) ||
+                     (rWrist.y < rShoulder.y && lWrist.y > lHip.y);
+  if (feetFar && oneArmUp && kneesStr) {
+    return { poseId: 'triangle', confidence: 0.72 };
+  }
+
+  // ---- MOUNTAIN POSE ----
+  // Standing tall, arms down, feet close
+  if (feetClose && armsDown && kneesStr && hipStraight) {
+    return { poseId: 'mountain', confidence: 0.75 };
+  }
+
+  return { poseId: null, confidence: 0 };
+}
+
+/* ======================================================
+   UI UPDATES
+====================================================== */
+function updateCurrentPose(poseId, confidence) {
+  const pose = poseId ? POSES.find(p => p.id === poseId) : null;
+  const pct  = Math.round(confidence * 100);
+
+  document.getElementById('cur-emoji').textContent =
+    pose ? pose.emoji : '🧘';
+  document.getElementById('cur-pose-name').textContent =
+    pose ? pose.name : (isRunning ? 'No pose detected' : 'Waiting...');
+  document.getElementById('cur-sanskrit').textContent =
+    pose ? pose.sanskrit : (isRunning ? 'Stand in frame' : 'Start camera to detect');
+  document.getElementById('conf-pct').textContent   = pct + '%';
+  document.getElementById('conf-fill').style.width  = pct + '%';
+}
+
+/* ======================================================
+   TOAST
+====================================================== */
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+/* ======================================================
+   INIT
+====================================================== */
+openDB().then(() => {
+  // Check session storage for logged in state
+  const savedUser = sessionStorage.getItem('zenpose_user');
+  if (savedUser) {
+    dbGet('users', savedUser).then(user => {
+      if (user) { currentUser = user; enterApp(); }
+    });
+  }
+}).catch(e => {
+  showToast('Database error: ' + e.message);
+});
+
+// Save session on login
+const _enterApp = enterApp;
+enterApp = function() {
+  if (currentUser) sessionStorage.setItem('zenpose_user', currentUser.username);
+  _enterApp();
+};
+
+const _doLogout = doLogout;
+doLogout = function() {
+  sessionStorage.removeItem('zenpose_user');
+  _doLogout();
+};
+</script>
+</body>
+</html>
