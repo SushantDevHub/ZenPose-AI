@@ -1,4 +1,4 @@
-# 🧘 ZenPose AI — Real-Time Yoga Pose Detection
+# ZenPose AI — Real-Time Yoga Pose Detection
 
 A fully browser-based, AI-powered yoga pose detection web app. No installation, no backend, no data uploaded anywhere — everything runs locally on your device.
 
@@ -10,18 +10,18 @@ A fully browser-based, AI-powered yoga pose detection web app. No installation, 
 
 ## 📸 Features
 
-- 🔐 **User Authentication** — Register & login with password hashing, stored in browser IndexedDB
-- 🤖 **Real-Time AI Detection** — Detects 8 yoga poses live via webcam using Google MediaPipe
-- 💀 **Skeleton Overlay** — Draws joints and bones on your live video feed
-- 📊 **Session Stats** — Tracks poses completed, time elapsed, and score
-- 📚 **Pose Library** — Visual grid that highlights poses you've successfully held
-- 💡 **Coaching Tips** — Contextual tips for each detected pose
-- 🏆 **Scoring System** — Earn 10 points for every pose held for 3+ seconds
-- 📱 **Responsive Design** — Works on desktop and mobile browsers
+-  **User Authentication** — Register & login with password hashing, stored in browser IndexedDB
+-  **Real-Time AI Detection** — Detects 8 yoga poses live via webcam using Google MediaPipe
+-  **Skeleton Overlay** — Draws joints and bones on your live video feed
+-  **Session Stats** — Tracks poses completed, time elapsed, and score
+- **Pose Library** — Visual grid that highlights poses you've successfully held
+-  **Coaching Tips** — Contextual tips for each detected pose
+-  **Scoring System** — Earn 10 points for every pose held for 3+ seconds
+-  **Responsive Design** — Works on desktop and mobile browsers
 
 ---
 
-## 🧘 Supported Yoga Poses
+##  Supported Yoga Poses
 
 | Emoji | Pose Name     | Sanskrit Name       |
 |-------|---------------|---------------------|
@@ -36,7 +36,7 @@ A fully browser-based, AI-powered yoga pose detection web app. No installation, 
 
 ---
 
-## 🚀 Getting Started
+##  Getting Started
 
 ### Prerequisites
 
@@ -61,7 +61,7 @@ Or simply download `yoga-pose-detection.html` and place it in a folder.
 python -m http.server 8080
 ```
 
-> ⚠️ You **must** use a local server. Opening the file directly via `file://` will block camera access due to browser security policies.
+>  You **must** use a local server. Opening the file directly via `file://` will block camera access due to browser security policies.
 
 **3. Open in your browser**
 
@@ -73,7 +73,7 @@ http://localhost:8080/yoga-pose-detection.html
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 | Technology | Purpose |
 |---|---|
@@ -88,7 +88,7 @@ http://localhost:8080/yoga-pose-detection.html
 
 ---
 
-## 🧠 How the AI Works
+##  How the AI Works
 
 ### 1. Landmark Detection (MediaPipe)
 Google's **BlazePose** neural network analyses each video frame and outputs **33 body keypoints** — nose, shoulders, elbows, wrists, hips, knees, ankles, and more — each with normalised `x`, `y`, `z` coordinates and a visibility confidence score.
@@ -117,7 +117,7 @@ A pose must be held for **3 continuous seconds** before it's registered as compl
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 zenpose-ai/
@@ -130,7 +130,7 @@ zenpose-ai/
 
 ---
 
-## 🔐 Authentication Details
+##  Authentication Details
 
 - Accounts are stored in **IndexedDB** in your browser (local only)
 - Passwords are hashed using **FNV-1a** before storage — plaintext is never saved
@@ -141,7 +141,7 @@ zenpose-ai/
 
 ---
 
-## ⚙️ Configuration
+##  Configuration
 
 The MediaPipe model can be tuned inside `startCamera()`:
 
@@ -156,7 +156,7 @@ poseDetector.setOptions({
 
 ---
 
-## 🌐 Deploy to GitHub Pages (Free Hosting)
+##  Deploy to GitHub Pages (Free Hosting)
 
 Once pushed to GitHub, enable GitHub Pages for a live HTTPS URL:
 
@@ -172,7 +172,7 @@ https://YOUR_USERNAME.github.io/zenpose-ai/yoga-pose-detection.html
 
 ---
 
-## 🐛 Known Issues & Limitations
+##  Known Issues & Limitations
 
 - **Camera permission error** — Must be served over `localhost` or HTTPS, not `file://`
 - **Occlusion** — Poses where limbs overlap (e.g. arms crossed) may reduce accuracy
@@ -182,7 +182,7 @@ https://YOUR_USERNAME.github.io/zenpose-ai/yoga-pose-detection.html
 
 ---
 
-## 🔮 Future Improvements
+##  Future Improvements
 
 - [ ] Train an MLP classifier on the Yoga-82 dataset for 82 pose support
 - [ ] Add rep counting and hold-time display per pose
@@ -193,13 +193,13 @@ https://YOUR_USERNAME.github.io/zenpose-ai/yoga-pose-detection.html
 
 ---
 
-## 📜 License
+##  License
 
 This project is open source under the [MIT License](LICENSE).
 
 ---
 
-## 🙏 Acknowledgements
+##  Acknowledgements
 
 - [Google MediaPipe](https://ai.google.dev/edge/mediapipe) — Pose landmark model
 - [BlazePose paper](https://arxiv.org/abs/2006.10204) — Bazarevsky et al., 2020
@@ -208,4 +208,4 @@ This project is open source under the [MIT License](LICENSE).
 
 ---
 
-<p align="center">Made with 🧘 by ZenPose AI</p>
+<p align="center">Made with by ZenPose AI</p>
