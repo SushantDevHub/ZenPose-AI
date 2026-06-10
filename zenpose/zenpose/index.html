@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZenPose AI — Yoga Pose Detection</title>
+
+  <!-- ── Google Fonts ── -->
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <!-- ── FRONTEND: Styles ── -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- ── MediaPipe CDN (ML model + drawing utils) ── -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"  crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"                  crossorigin="anonymous"></script>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════
+     AUTH SECTION  (shown before login)
+════════════════════════════════════════════════════ -->
+<section id="auth-section">
+  <div class="auth-card">
+
+    <!-- Brand -->
+    <div class="brand">
+      <div class="brand-icon">🧘</div>
+      <h1>ZenPose AI</h1>
+      <p>Yoga Pose Detection</p>
+    </div>
+
+    <!-- Login / Register tab toggle -->
+    <div class="tab-switch">
+      <button class="tab-btn active" id="tab-login"    onclick="switchTab('login')">Sign In</button>
+      <button class="tab-btn"        id="tab-register" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <!-- Login form -->
+    <div id="login-form">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text"     id="login-user" placeholder="your username"  autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-pass" placeholder="••••••••"       autocomplete="current-password"
+               onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+      <button class="btn-primary" onclick="doLogin()">Sign In →</button>
+    </div>
+
+    <!-- Register form (hidden by default) -->
+    <div id="register-form" style="display:none">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text"     id="reg-user"  placeholder="choose a username" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email"    id="reg-email" placeholder="you@example.com"   autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="reg-pass"  placeholder="min 6 characters"  autocomplete="new-password"
+               onkeydown="if(event.key==='Enter') doRegister()">
+      </div>
+      <button class="btn-primary" onclick="doRegister()">Create Account →</button>
+    </div>
+
+    <!-- Auth feedback message -->
+    <div class="auth-msg" id="auth-msg"></div>
+
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════
+     LOADING OVERLAY  (shown while MediaPipe loads)
+════════════════════════════════════════════════════ -->
+<div id="loading-overlay">
+  <div class="loader-logo">🧘 ZenPose AI</div>
+  <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
+  <div class="loader-msg" id="loader-msg">Initialising AI model...</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     APP SECTION  (shown after login)
+════════════════════════════════════════════════════ -->
+<section id="app-section">
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="nav-brand"><span class="icon">🧘</span> ZenPose AI</div>
+    <div class="nav-right">
+      <span class="user-badge" id="nav-username">—</span>
+      <button class="btn-logout" onclick="doLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <!-- Main two-column layout -->
+  <div class="main-layout">
+
+    <!-- ── Left: Live video panel ── -->
+    <div class="video-panel">
+
+      <div class="video-header">
+        <h2>Live Detection</h2>
+        <div>
+          <span class="status-dot"   id="status-dot"></span>
+          <span class="status-label" id="status-label">Camera off</span>
+        </div>
+      </div>
+
+      <!-- Video + canvas overlay -->
+      <div class="video-container" id="video-container">
+        <video  id="video-feed"    autoplay muted playsinline></video>
+        <canvas id="output-canvas"></canvas>
+
+        <!-- Shown when camera is off -->
+        <div class="video-placeholder" id="video-placeholder">
+          <div class="big-icon">📷</div>
+          <div>Start camera to detect poses</div>
+        </div>
+
+        <!-- Floating pose badge (shown during detection) -->
+        <div class="pose-badge" id="pose-badge">
+          <span class="pose-name" id="badge-name">Detecting...</span>
+          <div class="conf-bar-wrap">
+            <div class="conf-bar" id="badge-bar"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Camera control buttons -->
+      <div class="video-footer">
+        <button class="btn-cam start" id="btn-start" onclick="startCamera()">▶ Start Camera</button>
+        <button class="btn-cam stop"  id="btn-stop"  onclick="stopCamera()" disabled>■ Stop</button>
+      </div>
+
+    </div><!-- /video-panel -->
+
+    <!-- ── Right: Info sidebar ── -->
+    <div class="side-panel">
+
+      <!-- Current Pose Card -->
+      <div class="card">
+        <div class="card-title">🎯 Current Pose</div>
+        <div class="current-pose-display">
+          <span class="pose-emoji" id="cur-emoji">🧘</span>
+          <div class="pose-title"   id="cur-pose-name">Waiting...</div>
+          <div class="pose-sanskrit" id="cur-sanskrit">Start camera to detect</div>
+        </div>
+        <div class="confidence-display">
+          <div class="conf-label">
+            <span>Confidence</span>
+            <span id="conf-pct">0%</span>
+          </div>
+          <div class="conf-track">
+            <div class="conf-fill" id="conf-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Session Stats Card -->
+      <div class="card">
+        <div class="card-title">📊 Session Stats</div>
+        <div class="stats-row">
+          <div class="stat-item">
+            <span class="stat-val" id="stat-poses">0</span>
+            <div class="stat-lbl">Poses</div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-val" id="stat-time">0</span>
+            <div class="stat-lbl">Seconds</div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-val" id="stat-score">0</span>
+            <div class="stat-lbl">Score</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pose Library Card (chips populated by buildPoseGrid() in poses.js) -->
+      <div class="card">
+        <div class="card-title">📚 Pose Library</div>
+        <div class="pose-grid" id="pose-grid"></div>
+      </div>
+
+      <!-- Tips Card -->
+      <div class="card">
+        <div class="card-title">💡 Tip</div>
+        <div class="tip-text" id="tip-text">
+          <strong>Getting started:</strong> Stand 1.5–2m from your camera.
+          Make sure your full body is visible in the frame for accurate detection.
+        </div>
+      </div>
+
+    </div><!-- /side-panel -->
+
+  </div><!-- /main-layout -->
+</section>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<!-- ════════════════════════════════════════════════════
+     JAVASCRIPT — load order matters:
+       1. db.js     — database must be ready first
+       2. auth.js   — auth uses db helpers
+       3. poses.js  — pose data + classifier
+       4. ui.js     — ui helpers used by camera
+       5. camera.js — uses poses + ui
+       6. app.js    — bootstraps everything
+════════════════════════════════════════════════════ -->
+<script src="db.js"></script>
+<script src="auth.js"></script>
+<script src="poses.js"></script>
+<script src="ui.js"></script>
+<script src="camera.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
